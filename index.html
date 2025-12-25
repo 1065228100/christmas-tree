@@ -3,183 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Particle Christmas Tree</title>
+    <title>3D Gesture Christmas Tree</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        canvas#three-canvas { display: block; }
+        .camera-container {
+            position: fixed; bottom: 20px; right: 20px; width: 240px; height: 180px;
+            border: 3px solid rgba(255, 215, 0, 0.6); border-radius: 15px;
+            overflow: hidden; z-index: 100; background: #000;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
         }
-        body {
-            overflow: hidden;
-            background: #000;
-            font-family: 'Arial', sans-serif;
-        }
-        canvas {
-            display: block;
-        }
-        .controls {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 10px;
-            z-index: 100;
-        }
-        .controls button {
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 14px;
-        }
-        .controls button:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.5);
-        }
-        .controls button.active {
-            background: rgba(255, 215, 0, 0.3);
-            border-color: gold;
-        }
+        .camera-container video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .camera-container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+        .camera-status { position: absolute; top: 10px; left: 10px; padding: 5px 10px; background: rgba(0,0,0,0.7); color: #ffd700; font-size: 12px; border-radius: 10px; }
+        .gesture-display { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); padding: 5px 15px; background: rgba(255, 215, 0, 0.9); color: #000; font-size: 14px; font-weight: bold; border-radius: 15px; }
         .title {
-            position: fixed;
-            top: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #fff;
-            font-size: 2.5em;
-            font-weight: bold;
+            position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+            color: #fff; font-size: 2.5em; font-weight: bold;
             text-shadow: 0 0 20px #ffd700, 0 0 40px #ff6b6b, 0 0 60px #ffd700;
-            z-index: 100;
-            letter-spacing: 5px;
+            z-index: 100; letter-spacing: 5px;
             animation: titleGlow 2s ease-in-out infinite alternate;
         }
         @keyframes titleGlow {
             from { text-shadow: 0 0 20px #ffd700, 0 0 40px #ff6b6b; }
             to { text-shadow: 0 0 40px #ffd700, 0 0 80px #ff6b6b, 0 0 100px #ffd700; }
         }
-        .info {
-            position: fixed;
-            top: 100px;
-            left: 20px;
-            color: rgba(255,255,255,0.6);
-            font-size: 12px;
-            z-index: 100;
-            line-height: 1.8;
+        .gesture-guide {
+            position: fixed; top: 100px; left: 20px; color: rgba(255,255,255,0.8);
+            font-size: 14px; z-index: 100; line-height: 2;
+            background: rgba(0,0,0,0.5); padding: 15px 20px; border-radius: 15px;
+            border: 1px solid rgba(255,215,0,0.3);
         }
-        .info span {
-            color: #ffd700;
-            font-weight: bold;
+        .gesture-guide h3 { color: #ffd700; margin-bottom: 10px; font-size: 16px; }
+        .gesture-guide .gesture-item { display: flex; align-items: center; gap: 10px; }
+        .gesture-guide .emoji { font-size: 24px; }
+        .controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 100;
         }
+        .controls button {
+            padding: 10px 20px; background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3); color: white;
+            border-radius: 25px; cursor: pointer; transition: all 0.3s; font-size: 14px;
+        }
+        .controls button:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.5); }
+        .controls button.active { background: rgba(255, 215, 0, 0.3); border-color: gold; }
+        .loading {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #ffd700; font-size: 18px; z-index: 1000; text-align: center;
+        }
+        .loading.hidden { display: none; }
+        .loading .spinner {
+            width: 50px; height: 50px; border: 3px solid rgba(255,215,0,0.3);
+            border-top-color: #ffd700; border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
+    <div class="loading" id="loading"><div class="spinner"></div><div>Loading MediaPipe AI...</div></div>
     <h1 class="title">Merry Christmas</h1>
-    <div class="info">
-        <span>A</span> - 增亮 | <span>Y</span> - 黄绿色 | <span>R</span> - 红色<br>
-        <span>S</span> - 大雪花 | <span>D</span> - 乱雪 | <span>空格</span> - 加速旋转<br>
-        <span>鼠标拖动</span> - 旋转视角
+    <div class="gesture-guide">
+        <h3>Hand Gesture Control</h3>
+        <div class="gesture-item"><span class="emoji">✋</span> Open Palm - Explode</div>
+        <div class="gesture-item"><span class="emoji">✊</span> Closed Fist - Gather</div>
+        <div class="gesture-item"><span class="emoji">👍</span> Thumb Up - Zoom In</div>
+        <div class="gesture-item"><span class="emoji">👎</span> Thumb Down - Zoom Out</div>
+        <div class="gesture-item"><span class="emoji">✌️</span> Victory - Change Color</div>
+        <div class="gesture-item"><span class="emoji">👆</span> Pointing - Rotate</div>
+    </div>
+    <div class="camera-container" id="cameraContainer">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="gestureCanvas"></canvas>
+        <div class="camera-status" id="cameraStatus">Initializing...</div>
+        <div class="gesture-display" id="gestureDisplay" style="display:none;">-</div>
     </div>
     <div class="controls">
-        <button id="toggleRotate" class="active">自动旋转</button>
-        <button id="toggleSnow" class="active">下雪</button>
-        <button id="toggleGlow">辉光效果</button>
-        <button id="resetView">重置视角</button>
+        <button id="toggleCamera" class="active">Camera ON</button>
+        <button id="toggleRotate" class="active">Auto Rotate</button>
+        <button id="toggleSnow" class="active">Snow</button>
+        <button id="resetView">Reset</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // ============ 场景初始化 ============
-        let scene, camera, renderer;
-        let treeParticles, snowParticles, starParticle;
-        let autoRotate = true;
-        let snowEnabled = true;
-        let glowEnabled = false;
-        let rotationSpeed = 0.002;
-        let brightness = 1;
-        let treeColorMode = 'green'; // green, yellow, red
-        let snowSize = 1;
-        let chaoticSnow = false;
+    <script type="module">
+        import { GestureRecognizer, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs";
 
-        // 鼠标控制
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-        let cameraRotation = { x: 0, y: 0 };
+        let scene, camera, renderer, treeParticles, snowParticles, starParticle, gestureRecognizer;
+        let webcamRunning = false, lastGesture = "", gestureStartTime = 0;
+        let autoRotate = true, snowEnabled = true, rotationSpeed = 0.002;
+        let targetZoom = 25, currentZoom = 25, explosionMode = false, explosionProgress = 0, colorMode = 0, handX = 0;
+        let originalPositions = null, explodedPositions = null;
 
-        init();
-        animate();
+        const video = document.getElementById("webcam");
+        const gestureCanvas = document.getElementById("gestureCanvas");
+        const gestureCtx = gestureCanvas.getContext("2d");
+        const cameraStatus = document.getElementById("cameraStatus");
+        const gestureDisplay = document.getElementById("gestureDisplay");
+        const loadingEl = document.getElementById("loading");
 
-        function init() {
-            // 场景
+        async function init() {
+            initThreeJS();
+            await initGestureRecognizer();
+            await startWebcam();
+            animate();
+        }
+
+        function initThreeJS() {
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x000510, 0.015);
-
-            // 相机
+            scene.fog = new THREE.FogExp2(0x000510, 0.012);
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 5, 25);
             camera.lookAt(0, 5, 0);
-
-            // 渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setClearColor(0x000510);
-            document.body.appendChild(renderer.domElement);
-
-            // 创建场景元素
-            createStarField();
-            createTree();
-            createSnow();
-            createGround();
-            createStar();
-            createLights();
-
-            // 事件监听
-            setupEventListeners();
+            document.body.insertBefore(renderer.domElement, document.body.firstChild);
+            renderer.domElement.id = "three-canvas";
+            createStarField(); createTree(); createSnow(); createGround(); createStar();
+            window.addEventListener("resize", onWindowResize);
+            setupControls();
         }
 
-        // ============ 创建星空背景 ============
         function createStarField() {
             const geometry = new THREE.BufferGeometry();
-            const count = 2000;
-            const positions = new Float32Array(count * 3);
-            const colors = new Float32Array(count * 3);
-
-            for (let i = 0; i < count; i++) {
-                const i3 = i * 3;
+            const positions = new Float32Array(2000 * 3);
+            for (let i = 0; i < 2000; i++) {
                 const radius = 100 + Math.random() * 200;
                 const theta = Math.random() * Math.PI * 2;
                 const phi = Math.random() * Math.PI;
-
-                positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-                positions[i3 + 1] = radius * Math.cos(phi);
-                positions[i3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
-
-                const brightness = 0.5 + Math.random() * 0.5;
-                colors[i3] = brightness;
-                colors[i3 + 1] = brightness;
-                colors[i3 + 2] = brightness;
+                positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = radius * Math.cos(phi);
+                positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
             }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-            const material = new THREE.PointsMaterial({
-                size: 0.5,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.8
-            });
-
-            const stars = new THREE.Points(geometry, material);
-            scene.add(stars);
+            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            scene.add(new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.5, color: 0xffffff, transparent: true, opacity: 0.8 })));
         }
 
-        // ============ 创建粒子圣诞树 ============
         function createTree() {
             const geometry = new THREE.BufferGeometry();
             const count = 15000;
@@ -189,479 +152,255 @@
             const randoms = new Float32Array(count);
 
             for (let i = 0; i < count; i++) {
-                const i3 = i * 3;
-
-                // 圣诞树形状 - 圆锥螺旋
                 const height = Math.random();
                 const angle = height * Math.PI * 8 + Math.random() * 0.5;
                 const radius = (1 - height) * 6 + Math.random() * 0.3;
-
-                positions[i3] = Math.cos(angle) * radius;
-                positions[i3 + 1] = height * 15 - 2;
-                positions[i3 + 2] = Math.sin(angle) * radius;
-
-                // 颜色 - 主要绿色，带一些装饰色
+                positions[i * 3] = Math.cos(angle) * radius;
+                positions[i * 3 + 1] = height * 15 - 2;
+                positions[i * 3 + 2] = Math.sin(angle) * radius;
                 const isOrnament = Math.random() > 0.92;
                 if (isOrnament) {
-                    const ornamentType = Math.random();
-                    if (ornamentType < 0.33) {
-                        // 红色
-                        colors[i3] = 1;
-                        colors[i3 + 1] = 0.2;
-                        colors[i3 + 2] = 0.2;
-                    } else if (ornamentType < 0.66) {
-                        // 金色
-                        colors[i3] = 1;
-                        colors[i3 + 1] = 0.84;
-                        colors[i3 + 2] = 0;
-                    } else {
-                        // 蓝色
-                        colors[i3] = 0.2;
-                        colors[i3 + 1] = 0.5;
-                        colors[i3 + 2] = 1;
-                    }
+                    const t = Math.random();
+                    if (t < 0.33) { colors[i*3] = 1; colors[i*3+1] = 0.2; colors[i*3+2] = 0.2; }
+                    else if (t < 0.66) { colors[i*3] = 1; colors[i*3+1] = 0.84; colors[i*3+2] = 0; }
+                    else { colors[i*3] = 0.2; colors[i*3+1] = 0.5; colors[i*3+2] = 1; }
                     sizes[i] = 0.15 + Math.random() * 0.1;
                 } else {
-                    // 绿色树叶，有深浅变化
-                    const greenVariation = 0.3 + Math.random() * 0.4;
-                    colors[i3] = 0.1 + Math.random() * 0.1;
-                    colors[i3 + 1] = greenVariation;
-                    colors[i3 + 2] = 0.1 + Math.random() * 0.1;
+                    colors[i*3] = 0.1 + Math.random() * 0.1;
+                    colors[i*3+1] = 0.3 + Math.random() * 0.4;
+                    colors[i*3+2] = 0.1 + Math.random() * 0.1;
                     sizes[i] = 0.05 + Math.random() * 0.05;
                 }
-
                 randoms[i] = Math.random();
             }
 
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-            geometry.setAttribute('random', new THREE.BufferAttribute(randoms, 1));
+            originalPositions = new Float32Array(positions);
+            explodedPositions = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const r = 15 + Math.random() * 10;
+                explodedPositions[i * 3] = r * Math.sin(phi) * Math.cos(angle);
+                explodedPositions[i * 3 + 1] = r * Math.cos(phi) + 5;
+                explodedPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(angle);
+            }
 
-            // 自定义着色器材质
+            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+            geometry.setAttribute("random", new THREE.BufferAttribute(randoms, 1));
+
             const material = new THREE.ShaderMaterial({
-                uniforms: {
-                    time: { value: 0 },
-                    brightness: { value: 1 },
-                    colorMode: { value: 0 }
-                },
-                vertexShader: `
-                    attribute float size;
-                    attribute float random;
-                    varying vec3 vColor;
-                    varying float vRandom;
-                    uniform float time;
-                    uniform float brightness;
-
-                    void main() {
-                        vColor = color;
-                        vRandom = random;
-
-                        vec3 pos = position;
-                        // 轻微的呼吸效果
-                        pos.x += sin(time * 2.0 + random * 10.0) * 0.02;
-                        pos.z += cos(time * 2.0 + random * 10.0) * 0.02;
-
-                        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                        gl_PointSize = size * (300.0 / -mvPosition.z) * brightness;
-                        gl_Position = projectionMatrix * mvPosition;
-                    }
-                `,
-                fragmentShader: `
-                    varying vec3 vColor;
-                    varying float vRandom;
-                    uniform float time;
-                    uniform float brightness;
-                    uniform float colorMode;
-
-                    void main() {
-                        float dist = length(gl_PointCoord - vec2(0.5));
-                        if (dist > 0.5) discard;
-
-                        // 闪烁效果
-                        float twinkle = 0.7 + 0.3 * sin(time * 3.0 + vRandom * 20.0);
-
-                        vec3 finalColor = vColor;
-
-                        // 颜色模式切换
-                        if (colorMode == 1.0) {
-                            // 黄绿色
-                            finalColor.r = vColor.g * 0.8;
-                            finalColor.g = vColor.g;
-                            finalColor.b = vColor.g * 0.2;
-                        } else if (colorMode == 2.0) {
-                            // 红色
-                            finalColor.r = 0.8 + vColor.g * 0.2;
-                            finalColor.g = vColor.g * 0.3;
-                            finalColor.b = vColor.g * 0.2;
-                        }
-
-                        float alpha = (1.0 - dist * 2.0) * twinkle;
-                        gl_FragColor = vec4(finalColor * brightness * twinkle, alpha);
-                    }
-                `,
-                transparent: true,
-                vertexColors: true,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
+                uniforms: { time: { value: 0 }, colorMode: { value: 0 } },
+                vertexShader: "attribute float size; attribute float random; varying vec3 vColor; varying float vRandom; uniform float time; void main() { vColor = color; vRandom = random; vec3 pos = position; pos.x += sin(time * 2.0 + random * 10.0) * 0.03; pos.z += cos(time * 2.0 + random * 10.0) * 0.03; vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0); gl_PointSize = size * (300.0 / -mvPosition.z); gl_Position = projectionMatrix * mvPosition; }",
+                fragmentShader: "varying vec3 vColor; varying float vRandom; uniform float time; uniform float colorMode; void main() { float dist = length(gl_PointCoord - vec2(0.5)); if (dist > 0.5) discard; float twinkle = 0.7 + 0.3 * sin(time * 3.0 + vRandom * 20.0); vec3 finalColor = vColor; if (colorMode == 1.0) { finalColor = vec3(vColor.g * 0.8, vColor.g, vColor.g * 0.2); } else if (colorMode == 2.0) { finalColor = vec3(0.8 + vColor.g * 0.2, vColor.g * 0.3, vColor.g * 0.2); } else if (colorMode == 3.0) { finalColor = vec3(vColor.g * 0.3, vColor.g * 0.5, 0.9); } gl_FragColor = vec4(finalColor * twinkle, (1.0 - dist * 2.0) * twinkle); }",
+                transparent: true, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false
             });
 
             treeParticles = new THREE.Points(geometry, material);
             scene.add(treeParticles);
-
-            // 树干
-            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.8, 2, 16);
-            const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x4a2c2a });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 2, 16), new THREE.MeshBasicMaterial({ color: 0x4a2c2a }));
             trunk.position.y = -3;
             scene.add(trunk);
         }
 
-        // ============ 创建雪花粒子 ============
         function createSnow() {
             const geometry = new THREE.BufferGeometry();
             const count = 5000;
             const positions = new Float32Array(count * 3);
             const velocities = new Float32Array(count * 3);
-            const sizes = new Float32Array(count);
-
             for (let i = 0; i < count; i++) {
-                const i3 = i * 3;
-                positions[i3] = (Math.random() - 0.5) * 100;
-                positions[i3 + 1] = Math.random() * 50;
-                positions[i3 + 2] = (Math.random() - 0.5) * 100;
-
-                velocities[i3] = (Math.random() - 0.5) * 0.02;
-                velocities[i3 + 1] = -0.05 - Math.random() * 0.05;
-                velocities[i3 + 2] = (Math.random() - 0.5) * 0.02;
-
-                sizes[i] = 0.1 + Math.random() * 0.2;
+                positions[i * 3] = (Math.random() - 0.5) * 100;
+                positions[i * 3 + 1] = Math.random() * 50;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+                velocities[i * 3] = (Math.random() - 0.5) * 0.02;
+                velocities[i * 3 + 1] = -0.05 - Math.random() * 0.05;
+                velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
             }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
-            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-
-            // 雪花纹理
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-
+            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute("velocity", new THREE.BufferAttribute(velocities, 3));
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 64;
+            const ctx = canvas.getContext("2d");
             const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
-            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            gradient.addColorStop(0, "rgba(255,255,255,1)");
+            gradient.addColorStop(0.3, "rgba(255,255,255,0.8)");
+            gradient.addColorStop(1, "rgba(255,255,255,0)");
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 64, 64);
-
-            const texture = new THREE.CanvasTexture(canvas);
-
-            const material = new THREE.PointsMaterial({
-                size: 0.3,
-                map: texture,
-                transparent: true,
-                opacity: 0.8,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            });
-
-            snowParticles = new THREE.Points(geometry, material);
+            snowParticles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, map: new THREE.CanvasTexture(canvas), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
             scene.add(snowParticles);
         }
 
-        // ============ 创建地面 ============
         function createGround() {
             const geometry = new THREE.BufferGeometry();
-            const count = 3000;
-            const positions = new Float32Array(count * 3);
-
-            for (let i = 0; i < count; i++) {
-                const i3 = i * 3;
+            const positions = new Float32Array(3000 * 3);
+            for (let i = 0; i < 3000; i++) {
                 const radius = Math.random() * 40;
                 const angle = Math.random() * Math.PI * 2;
-
-                positions[i3] = Math.cos(angle) * radius;
-                positions[i3 + 1] = -4 + Math.random() * 0.5;
-                positions[i3 + 2] = Math.sin(angle) * radius;
+                positions[i * 3] = Math.cos(angle) * radius;
+                positions[i * 3 + 1] = -4 + Math.random() * 0.5;
+                positions[i * 3 + 2] = Math.sin(angle) * radius;
             }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-            const material = new THREE.PointsMaterial({
-                size: 0.15,
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.6,
-                blending: THREE.AdditiveBlending
-            });
-
-            const ground = new THREE.Points(geometry, material);
-            scene.add(ground);
+            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            scene.add(new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.15, color: 0xffffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending })));
         }
 
-        // ============ 创建顶部星星 ============
         function createStar() {
             const geometry = new THREE.BufferGeometry();
-            const positions = [];
-            const colors = [];
-
-            // 创建星形
-            const points = 5;
-            const outerRadius = 1;
-            const innerRadius = 0.4;
-
+            const positions = [], colors = [];
             for (let i = 0; i < 200; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const r = Math.random() < 0.5 ?
-                    outerRadius * (0.5 + Math.random() * 0.5) :
-                    innerRadius * (0.5 + Math.random() * 0.5);
-
-                positions.push(
-                    Math.cos(angle) * r,
-                    13.5 + Math.random() * 0.3,
-                    Math.sin(angle) * r
-                );
-
+                const r = (Math.random() < 0.5 ? 1 : 0.4) * (0.5 + Math.random() * 0.5);
+                positions.push(Math.cos(angle) * r, 13.5 + Math.random() * 0.3, Math.sin(angle) * r);
                 colors.push(1, 0.84, 0);
             }
-
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-            const material = new THREE.PointsMaterial({
-                size: 0.2,
-                vertexColors: true,
-                transparent: true,
-                blending: THREE.AdditiveBlending
-            });
-
-            starParticle = new THREE.Points(geometry, material);
+            geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+            starParticle = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.2, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending }));
             scene.add(starParticle);
-
-            // 中心发光点
-            const glowGeometry = new THREE.SphereGeometry(0.3, 16, 16);
-            const glowMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffd700,
-                transparent: true,
-                opacity: 0.8
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            const glow = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.8 }));
             glow.position.y = 13.5;
             scene.add(glow);
         }
 
-        // ============ 创建灯光 ============
-        function createLights() {
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-            scene.add(ambientLight);
-
-            const pointLight = new THREE.PointLight(0xffd700, 1, 50);
-            pointLight.position.set(0, 15, 0);
-            scene.add(pointLight);
-        }
-
-        // ============ 事件监听 ============
-        function setupEventListeners() {
-            window.addEventListener('resize', onWindowResize);
-
-            // 鼠标控制
-            renderer.domElement.addEventListener('mousedown', onMouseDown);
-            renderer.domElement.addEventListener('mousemove', onMouseMove);
-            renderer.domElement.addEventListener('mouseup', onMouseUp);
-            renderer.domElement.addEventListener('wheel', onMouseWheel);
-
-            // 触摸控制
-            renderer.domElement.addEventListener('touchstart', onTouchStart);
-            renderer.domElement.addEventListener('touchmove', onTouchMove);
-            renderer.domElement.addEventListener('touchend', onTouchEnd);
-
-            // 键盘控制
-            window.addEventListener('keydown', onKeyDown);
-
-            // 按钮控制
-            document.getElementById('toggleRotate').addEventListener('click', toggleRotate);
-            document.getElementById('toggleSnow').addEventListener('click', toggleSnow);
-            document.getElementById('toggleGlow').addEventListener('click', toggleGlow);
-            document.getElementById('resetView').addEventListener('click', resetView);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function onMouseDown(event) {
-            isDragging = true;
-            previousMousePosition = { x: event.clientX, y: event.clientY };
-        }
-
-        function onMouseMove(event) {
-            if (!isDragging) return;
-
-            const deltaX = event.clientX - previousMousePosition.x;
-            const deltaY = event.clientY - previousMousePosition.y;
-
-            cameraRotation.x += deltaY * 0.005;
-            cameraRotation.y += deltaX * 0.005;
-
-            cameraRotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, cameraRotation.x));
-
-            previousMousePosition = { x: event.clientX, y: event.clientY };
-        }
-
-        function onMouseUp() {
-            isDragging = false;
-        }
-
-        function onMouseWheel(event) {
-            const zoom = event.deltaY * 0.01;
-            camera.position.z = Math.max(10, Math.min(50, camera.position.z + zoom));
-        }
-
-        function onTouchStart(event) {
-            if (event.touches.length === 1) {
-                isDragging = true;
-                previousMousePosition = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+        async function initGestureRecognizer() {
+            try {
+                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+                gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task", delegate: "GPU" },
+                    runningMode: "VIDEO", numHands: 1
+                });
+                loadingEl.classList.add("hidden");
+            } catch (error) {
+                console.error("Error:", error);
+                cameraStatus.textContent = "Error loading AI";
+                loadingEl.innerHTML = "<div style='color:#ff6b6b;'>Failed to load MediaPipe.<br>Please refresh.</div>";
             }
         }
 
-        function onTouchMove(event) {
-            if (!isDragging || event.touches.length !== 1) return;
-
-            const deltaX = event.touches[0].clientX - previousMousePosition.x;
-            const deltaY = event.touches[0].clientY - previousMousePosition.y;
-
-            cameraRotation.x += deltaY * 0.005;
-            cameraRotation.y += deltaX * 0.005;
-
-            previousMousePosition = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-        }
-
-        function onTouchEnd() {
-            isDragging = false;
-        }
-
-        function onKeyDown(event) {
-            switch(event.key.toLowerCase()) {
-                case 'a':
-                    brightness = brightness === 1 ? 1.5 : 1;
-                    break;
-                case 'y':
-                    treeColorMode = 'yellow';
-                    treeParticles.material.uniforms.colorMode.value = 1;
-                    break;
-                case 'r':
-                    treeColorMode = 'red';
-                    treeParticles.material.uniforms.colorMode.value = 2;
-                    break;
-                case 'g':
-                    treeColorMode = 'green';
-                    treeParticles.material.uniforms.colorMode.value = 0;
-                    break;
-                case 's':
-                    snowSize = snowSize === 1 ? 2 : 1;
-                    snowParticles.material.size = 0.3 * snowSize;
-                    break;
-                case 'd':
-                    chaoticSnow = !chaoticSnow;
-                    break;
-                case ' ':
-                    rotationSpeed = rotationSpeed === 0.002 ? 0.01 : 0.002;
-                    event.preventDefault();
-                    break;
+        async function startWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
+                video.srcObject = stream;
+                video.addEventListener("loadeddata", () => {
+                    webcamRunning = true;
+                    gestureCanvas.width = video.videoWidth;
+                    gestureCanvas.height = video.videoHeight;
+                    cameraStatus.textContent = "Camera Ready";
+                    predictGesture();
+                });
+            } catch (error) {
+                cameraStatus.textContent = "Camera Denied";
             }
         }
 
-        function toggleRotate() {
-            autoRotate = !autoRotate;
-            document.getElementById('toggleRotate').classList.toggle('active', autoRotate);
+        async function predictGesture() {
+            if (!webcamRunning || !gestureRecognizer) { requestAnimationFrame(predictGesture); return; }
+            const results = gestureRecognizer.recognizeForVideo(video, performance.now());
+            gestureCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
+            if (results.landmarks && results.landmarks.length > 0) {
+                const landmarks = results.landmarks[0];
+                drawHandLandmarks(landmarks);
+                handX = landmarks[9].x;
+                if (results.gestures && results.gestures.length > 0) {
+                    const gesture = results.gestures[0][0];
+                    if (gesture.score > 0.7) {
+                        gestureDisplay.style.display = "block";
+                        gestureDisplay.textContent = getGestureEmoji(gesture.categoryName) + " " + gesture.categoryName;
+                        handleGesture(gesture.categoryName);
+                    }
+                } else { gestureDisplay.style.display = "none"; }
+            } else { gestureDisplay.style.display = "none"; }
+            requestAnimationFrame(predictGesture);
         }
 
-        function toggleSnow() {
-            snowEnabled = !snowEnabled;
-            snowParticles.visible = snowEnabled;
-            document.getElementById('toggleSnow').classList.toggle('active', snowEnabled);
-        }
-
-        function toggleGlow() {
-            glowEnabled = !glowEnabled;
-            document.getElementById('toggleGlow').classList.toggle('active', glowEnabled);
-            if (glowEnabled) {
-                renderer.setClearColor(0x001020);
-            } else {
-                renderer.setClearColor(0x000510);
+        function drawHandLandmarks(landmarks) {
+            gestureCtx.fillStyle = "#ffd700";
+            gestureCtx.strokeStyle = "#ffd700";
+            gestureCtx.lineWidth = 2;
+            const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+            for (const [i, j] of connections) {
+                gestureCtx.beginPath();
+                gestureCtx.moveTo(landmarks[i].x * gestureCanvas.width, landmarks[i].y * gestureCanvas.height);
+                gestureCtx.lineTo(landmarks[j].x * gestureCanvas.width, landmarks[j].y * gestureCanvas.height);
+                gestureCtx.stroke();
+            }
+            for (const point of landmarks) {
+                gestureCtx.beginPath();
+                gestureCtx.arc(point.x * gestureCanvas.width, point.y * gestureCanvas.height, 4, 0, Math.PI * 2);
+                gestureCtx.fill();
             }
         }
 
-        function resetView() {
-            cameraRotation = { x: 0, y: 0 };
-            camera.position.set(0, 5, 25);
-            treeParticles.material.uniforms.colorMode.value = 0;
-            brightness = 1;
-            snowSize = 1;
-            snowParticles.material.size = 0.3;
-            chaoticSnow = false;
-            rotationSpeed = 0.002;
+        function getGestureEmoji(gesture) {
+            const emojis = { "Open_Palm": "✋", "Closed_Fist": "✊", "Thumb_Up": "👍", "Thumb_Down": "👎", "Victory": "✌️", "Pointing_Up": "👆", "ILoveYou": "🤟" };
+            return emojis[gesture] || "👋";
         }
 
-        // ============ 动画循环 ============
+        function handleGesture(gesture) {
+            const now = Date.now();
+            if (gesture !== lastGesture) { lastGesture = gesture; gestureStartTime = now; }
+            const duration = now - gestureStartTime;
+            switch (gesture) {
+                case "Open_Palm": explosionMode = true; break;
+                case "Closed_Fist": explosionMode = false; break;
+                case "Thumb_Up": targetZoom = Math.max(10, targetZoom - 0.5); break;
+                case "Thumb_Down": targetZoom = Math.min(50, targetZoom + 0.5); break;
+                case "Victory": if (duration > 500 && duration < 600) { colorMode = (colorMode + 1) % 4; if (treeParticles) treeParticles.material.uniforms.colorMode.value = colorMode; } break;
+                case "Pointing_Up": autoRotate = false; if (treeParticles) treeParticles.rotation.y += (handX - 0.5) * 0.05; break;
+                case "ILoveYou": rotationSpeed = 0.02; break;
+                default: rotationSpeed = 0.002; if (gesture !== "Pointing_Up") autoRotate = true;
+            }
+        }
+
+        function updateExplosion() {
+            if (!treeParticles || !originalPositions || !explodedPositions) return;
+            const positions = treeParticles.geometry.attributes.position.array;
+            const targetProgress = explosionMode ? 1 : 0;
+            explosionProgress += (targetProgress - explosionProgress) * 0.02;
+            for (let i = 0; i < positions.length; i++) positions[i] = originalPositions[i] * (1 - explosionProgress) + explodedPositions[i] * explosionProgress;
+            treeParticles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function setupControls() {
+            document.getElementById("toggleCamera").addEventListener("click", function() {
+                webcamRunning = !webcamRunning;
+                this.textContent = webcamRunning ? "Camera ON" : "Camera OFF";
+                this.classList.toggle("active", webcamRunning);
+                document.getElementById("cameraContainer").style.display = webcamRunning ? "block" : "none";
+            });
+            document.getElementById("toggleRotate").addEventListener("click", function() { autoRotate = !autoRotate; this.classList.toggle("active", autoRotate); });
+            document.getElementById("toggleSnow").addEventListener("click", function() { snowEnabled = !snowEnabled; snowParticles.visible = snowEnabled; this.classList.toggle("active", snowEnabled); });
+            document.getElementById("resetView").addEventListener("click", function() {
+                targetZoom = 25; colorMode = 0; explosionMode = false; autoRotate = true; rotationSpeed = 0.002;
+                if (treeParticles) { treeParticles.material.uniforms.colorMode.value = 0; treeParticles.rotation.y = 0; }
+            });
+        }
+
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
         function animate() {
             requestAnimationFrame(animate);
-
             const time = performance.now() * 0.001;
-
-            // 更新树的shader时间
-            if (treeParticles) {
-                treeParticles.material.uniforms.time.value = time;
-                treeParticles.material.uniforms.brightness.value = brightness;
-
-                if (autoRotate) {
-                    treeParticles.rotation.y += rotationSpeed;
-                }
-            }
-
-            // 更新星星旋转
-            if (starParticle) {
-                starParticle.rotation.y += 0.01;
-            }
-
-            // 更新雪花位置
+            if (treeParticles) { treeParticles.material.uniforms.time.value = time; if (autoRotate) treeParticles.rotation.y += rotationSpeed; }
+            if (starParticle) starParticle.rotation.y += 0.01;
+            updateExplosion();
+            currentZoom += (targetZoom - currentZoom) * 0.05;
+            camera.position.z = currentZoom;
             if (snowParticles && snowEnabled) {
-                const positions = snowParticles.geometry.attributes.position.array;
-                const velocities = snowParticles.geometry.attributes.velocity.array;
-
-                for (let i = 0; i < positions.length; i += 3) {
-                    if (chaoticSnow) {
-                        positions[i] += Math.sin(time + i) * 0.05;
-                        positions[i + 2] += Math.cos(time + i) * 0.05;
-                    } else {
-                        positions[i] += velocities[i];
-                        positions[i + 2] += velocities[i + 2];
-                    }
-                    positions[i + 1] += velocities[i + 1];
-
-                    // 重置到顶部
-                    if (positions[i + 1] < -5) {
-                        positions[i] = (Math.random() - 0.5) * 100;
-                        positions[i + 1] = 50;
-                        positions[i + 2] = (Math.random() - 0.5) * 100;
-                    }
+                const pos = snowParticles.geometry.attributes.position.array;
+                const vel = snowParticles.geometry.attributes.velocity.array;
+                for (let i = 0; i < pos.length; i += 3) {
+                    pos[i] += vel[i]; pos[i + 1] += vel[i + 1]; pos[i + 2] += vel[i + 2];
+                    if (pos[i + 1] < -5) { pos[i] = (Math.random() - 0.5) * 100; pos[i + 1] = 50; pos[i + 2] = (Math.random() - 0.5) * 100; }
                 }
-
                 snowParticles.geometry.attributes.position.needsUpdate = true;
             }
-
-            // 更新相机位置
-            const radius = camera.position.z;
-            camera.position.x = Math.sin(cameraRotation.y) * radius * Math.cos(cameraRotation.x);
-            camera.position.y = 5 + Math.sin(cameraRotation.x) * radius;
-            camera.position.z = Math.cos(cameraRotation.y) * radius * Math.cos(cameraRotation.x);
-            camera.lookAt(0, 5, 0);
-
             renderer.render(scene, camera);
         }
+
+        init();
     </script>
 </body>
 </html>
